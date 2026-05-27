@@ -11,8 +11,4 @@ services:
       - key: PORT
         value: 3000
       - key: DB_PATH
-        value: /var/data/visits.db
-    disk:
-      name: sqlite-data
-      mountPath: /var/data
-      sizeGB: 1
+        value: ./db/visits.json
