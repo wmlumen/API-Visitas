@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: api-visitas
+    runtime: node
+    repo: https://github.com/wmlumen/API-Visitas
+    plan: free
+    region: ohio
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DB_PATH
+        value: /var/data/visits.db
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
