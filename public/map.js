@@ -5,6 +5,10 @@ let map;
 let markersLayer;
 
 function initMap() {
+  const container = document.getElementById('map');
+  container.classList.remove('loading');
+  container.innerHTML = '';
+
   map = L.map('map', {
     center: [20, 0],
     zoom: 2,
@@ -24,30 +28,23 @@ function initMap() {
 function loadLocations(project) {
   if (!map) initMap();
 
-  markersLayer.clearLayers();
-  document.getElementById('map').classList.remove('loading');
-  document.getElementById('map').innerHTML = '';
+  if (markersLayer) markersLayer.clearLayers();
 
   fetch(`/api/stats/locations?project=${encodeURIComponent(project)}`)
     .then(r => r.json())
     .then(data => {
       if (!data.cities || data.cities.length === 0) {
-        document.getElementById('map').innerHTML = `
-          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;">
-            Sin datos de ubicación aún
-          </div>`;
+        const container = document.getElementById('map');
+        if (!map || !container.querySelector('.leaflet-container')) {
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;">Sin datos de ubicación aún</div>';
+        }
         return;
       }
 
-      // Si el mapa no está inicializado, iniciarlo
-      if (!map) {
+      // Asegurar que el mapa está listo
+      const container = document.getElementById('map');
+      if (!container.querySelector('.leaflet-container')) {
         initMap();
-      } else {
-        // Si el div del mapa se reemplazó, reinicializar
-        const mapContainer = document.getElementById('map');
-        if (!mapContainer._leaflet_id) {
-          initMap();
-        }
       }
 
       const bounds = [];
@@ -69,22 +66,13 @@ function loadLocations(project) {
           fillOpacity: 0.6
         });
 
-        marker.bindTooltip(`
-          <strong>${city.city}, ${city.country}</strong><br>
-          ${city.count} visita${city.count !== 1 ? 's' : ''}
-        `, { direction: 'top' });
-
-        marker.bindPopup(`
-          <strong>${city.city}</strong><br>
-          ${city.region ? city.region + ', ' : ''}${city.country}<br>
-          <b>${city.count}</b> visita${city.count !== 1 ? 's' : ''}
-        `);
+        marker.bindTooltip(`${city.city}, ${city.country}<br>${city.count} visita${city.count !== 1 ? 's' : ''}`, { direction: 'top' });
+        marker.bindPopup(`<strong>${city.city}</strong><br>${city.region ? city.region + ', ' : ''}${city.country}<br><b>${city.count}</b> visita${city.count !== 1 ? 's' : ''}`);
 
         markersLayer.addLayer(marker);
         bounds.push([lat, lon]);
       });
 
-      // Ajustar vista si hay marcadores
       if (bounds.length > 0) {
         const group = L.featureGroup(bounds.map(b => L.marker(b)));
         map.fitBounds(group.getBounds().pad(0.1));
@@ -93,9 +81,5 @@ function loadLocations(project) {
     })
     .catch(err => {
       console.error('Error loading locations:', err);
-      document.getElementById('map').innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;">
-          Error al cargar ubicaciones
-        </div>`;
     });
 }
