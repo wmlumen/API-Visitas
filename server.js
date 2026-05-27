@@ -9,13 +9,16 @@ try { require('dotenv').config({ path: path.join(__dirname, '.env') }); } catch 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Inicializar base de datos (con try/catch para no romper el startup)
-try {
-  require('./db/database').getDb();
+// Inicializar base de datos (async)
+const database = require('./db/database');
+let dbReady = false;
+
+database.initDatabase().then(() => {
+  dbReady = true;
   console.log('✅ Base de datos inicializada');
-} catch (e) {
+}).catch(e => {
   console.error('⚠️ Error en base de datos:', e.message);
-}
+});
 
 // Middlewares
 app.use(cors());

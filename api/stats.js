@@ -1,46 +1,41 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, getProjectId } = require('../db/database');
+const { getProjectId, queryAll, queryOne } = require('../db/database');
 
 /**
  * GET /api/stats/overview?project=nombre
- * Estadísticas generales: total, únicos, hoy, esta semana, top páginas
  */
 router.get('/overview', (req, res) => {
   const project = req.query.project || 'default';
   const projectId = getProjectId(project);
-  const db = getDb();
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0').get(projectId);
-  const today = db.prepare("SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND date(created_at) = date('now')").get(projectId);
-  const week = db.prepare("SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND created_at >= datetime('now', '-7 days')").get(projectId);
-  const unique = db.prepare('SELECT COUNT(DISTINCT visitor_hash) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND visitor_hash IS NOT NULL').get(projectId);
-  const uniqueToday = db.prepare("SELECT COUNT(DISTINCT visitor_hash) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND date(created_at) = date('now') AND visitor_hash IS NOT NULL").get(projectId);
+  const total = queryOne('SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0', [projectId]);
+  const today = queryOne("SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND date(created_at) = date('now')", [projectId]);
+  const week = queryOne("SELECT COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND created_at >= datetime('now', '-7 days')", [projectId]);
+  const unique = queryOne('SELECT COUNT(DISTINCT visitor_hash) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND visitor_hash IS NOT NULL', [projectId]);
+  const uniqueToday = queryOne("SELECT COUNT(DISTINCT visitor_hash) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND date(created_at) = date('now') AND visitor_hash IS NOT NULL", [projectId]);
 
-  // Top páginas
-  const topPages = db.prepare("SELECT page, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND page != '' GROUP BY page ORDER BY count DESC LIMIT 10").all(projectId);
+  const topPages = queryAll("SELECT page, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND page != '' GROUP BY page ORDER BY count DESC LIMIT 10", [projectId]);
 
   res.json({
-    total: total.count,
-    unique_visitors: unique.count,
-    today: today.count,
-    unique_today: uniqueToday.count,
-    this_week: week.count,
+    total: total?.count || 0,
+    unique_visitors: unique?.count || 0,
+    today: today?.count || 0,
+    unique_today: uniqueToday?.count || 0,
+    this_week: week?.count || 0,
     top_pages: topPages
   });
 });
 
 /**
  * GET /api/stats/timeline?project=nombre&days=30
- * Visitas por día (últimos N días)
  */
 router.get('/timeline', (req, res) => {
   const project = req.query.project || 'default';
   const days = parseInt(req.query.days) || 30;
   const projectId = getProjectId(project);
-  const db = getDb();
 
-  const timeline = db.prepare(`
+  const timeline = queryAll(`
     SELECT date(created_at) as date, COUNT(*) as count,
            COUNT(DISTINCT visitor_hash) as unique_count
     FROM visits
@@ -48,76 +43,68 @@ router.get('/timeline', (req, res) => {
       AND created_at >= datetime('now', ? || ' days')
     GROUP BY date(created_at)
     ORDER BY date ASC
-  `).all(projectId, -days);
+  `, [projectId, -days]);
 
   res.json({ project, days, timeline });
 });
 
 /**
  * GET /api/stats/devices?project=nombre
- * Desglose por navegador, SO, tipo de dispositivo
  */
 router.get('/devices', (req, res) => {
   const project = req.query.project || 'default';
   const projectId = getProjectId(project);
-  const db = getDb();
 
-  const browsers = db.prepare("SELECT browser, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND browser != 'Unknown' GROUP BY browser ORDER BY count DESC").all(projectId);
-  const os = db.prepare("SELECT os, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND os != 'Unknown' GROUP BY os ORDER BY count DESC").all(projectId);
-  const devices = db.prepare('SELECT device, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 GROUP BY device ORDER BY count DESC').all(projectId);
+  const browsers = queryAll("SELECT browser, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND browser != 'Unknown' GROUP BY browser ORDER BY count DESC", [projectId]);
+  const os = queryAll("SELECT os, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 AND os != 'Unknown' GROUP BY os ORDER BY count DESC", [projectId]);
+  const devices = queryAll('SELECT device, COUNT(*) as count FROM visits WHERE project_id = ? AND is_bot = 0 GROUP BY device ORDER BY count DESC', [projectId]);
 
   res.json({ browsers, os, devices });
 });
 
 /**
  * GET /api/stats/locations?project=nombre
- * Datos geográficos para el mapa (país + ciudad con coordenadas)
  */
 router.get('/locations', (req, res) => {
   const project = req.query.project || 'default';
   const projectId = getProjectId(project);
-  const db = getDb();
 
-  // Por país
-  const countries = db.prepare(`
+  const countries = queryAll(`
     SELECT country, COUNT(*) as count,
            AVG(lat) as lat, AVG(lon) as lon
     FROM visits
     WHERE project_id = ? AND is_bot = 0 AND country != '' AND lat IS NOT NULL
     GROUP BY country
     ORDER BY count DESC
-  `).all(projectId);
+  `, [projectId]);
 
-  // Por ciudad (para puntos en el mapa)
-  const cities = db.prepare(`
+  const cities = queryAll(`
     SELECT country, city, region, lat, lon, COUNT(*) as count
     FROM visits
     WHERE project_id = ? AND is_bot = 0 AND city != '' AND lat IS NOT NULL AND lon IS NOT NULL
     GROUP BY country, city
     ORDER BY count DESC
     LIMIT 500
-  `).all(projectId);
+  `, [projectId]);
 
   res.json({ countries, cities });
 });
 
 /**
  * GET /api/stats/recent?project=nombre&limit=20
- * Últimas visitas (tabla)
  */
 router.get('/recent', (req, res) => {
   const project = req.query.project || 'default';
   const limit = parseInt(req.query.limit) || 20;
   const projectId = getProjectId(project);
-  const db = getDb();
 
-  const recent = db.prepare(`
+  const recent = queryAll(`
     SELECT country, city, browser, os, device, page, created_at
     FROM visits
     WHERE project_id = ? AND is_bot = 0
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(projectId, limit);
+  `, [projectId, limit]);
 
   res.json(recent);
 });
