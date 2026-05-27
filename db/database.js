@@ -5,7 +5,7 @@ const fs = require('fs');
 try { require('dotenv').config({ path: path.join(__dirname, '..', '.env') }); } catch (e) {}
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'visits.json');
-let data = { projects: [], visits: [], _nextPid: 1, _nextVid: 1 };
+let data = { projects: [], visits: [], shares: [], _nextPid: 1, _nextVid: 1 };
 let dbDir = path.dirname(DB_PATH);
 
 function load() {
@@ -64,10 +64,66 @@ function insertVisit(v) {
     referrer: v.referrer || '',
     visitor_hash: v.visitorHash || '',
     is_bot: v.isBot ? 1 : 0,
+    time_spent: null,
     created_at: now
   });
   save();
   return id;
+}
+
+function updateTimeSpent(projectId, visitorHash, seconds) {
+  const sec = parseInt(seconds) || 0;
+  if (sec <= 0) return null;
+  const visits = data.visits.filter(v => v.project_id === projectId && v.visitor_hash === visitorHash);
+  if (visits.length === 0) return null;
+  const lastVisit = visits[visits.length - 1];
+  lastVisit.time_spent = (lastVisit.time_spent || 0) + sec;
+  save();
+  return lastVisit.time_spent;
+}
+
+function timeStats(projectId) {
+  const all = visitsByProject(projectId).filter(v => v.time_spent != null && v.time_spent > 0);
+  if (all.length === 0) return { visits_with_time: 0, avg_seconds: 0, max_seconds: 0, total_seconds: 0 };
+  const total = all.reduce((s, v) => s + v.time_spent, 0);
+  return {
+    visits_with_time: all.length,
+    avg_seconds: Math.round(total / all.length),
+    max_seconds: Math.max(...all.map(v => v.time_spent)),
+    total_seconds: total
+  };
+}
+
+function insertShare(projectId, platform, page) {
+  data.shares = data.shares || [];
+  data.shares.push({
+    project_id: projectId,
+    platform,
+    page: page || '',
+    created_at: new Date().toISOString()
+  });
+  save();
+}
+
+function shareStats(projectId) {
+  data.shares = data.shares || [];
+  const projectShares = data.shares.filter(s => s.project_id === projectId);
+  const total = projectShares.length;
+  const byPlatform = {};
+  projectShares.forEach(s => {
+    byPlatform[s.platform] = (byPlatform[s.platform] || 0) + 1;
+  });
+  return { total, by_platform: byPlatform };
+}
+
+function allSharesStats() {
+  data.shares = data.shares || [];
+  const byProject = {};
+  data.shares.forEach(s => {
+    if (!byProject[s.project_id]) byProject[s.project_id] = 0;
+    byProject[s.project_id]++;
+  });
+  return { total_shares: data.shares.length, by_project: byProject };
 }
 
 // ─── Stats helpers ────────────────────────────────────────
@@ -210,4 +266,4 @@ function countGroup(arr, key) {
     .sort((a, b) => b.count - a.count);
 }
 
-module.exports = { initDatabase, getProjectId, insertVisit, overview, timeline, devices, locations, recent, projectList, save };
+module.exports = { initDatabase, getProjectId, insertVisit, updateTimeSpent, timeStats, insertShare, shareStats, allSharesStats, overview, timeline, devices, locations, recent, projectList, save };

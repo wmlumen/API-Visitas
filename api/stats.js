@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getProjectId, overview, timeline, devices, locations, recent } = require('../db/database');
+const { getProjectId, overview, timeline, devices, locations, recent, timeStats, shareStats } = require('../db/database');
 
 router.get('/overview', (req, res) => {
   const projectId = getProjectId(req.query.project || 'default');
@@ -27,6 +27,16 @@ router.get('/recent', (req, res) => {
   const projectId = getProjectId(req.query.project || 'default');
   const limit = parseInt(req.query.limit) || 20;
   res.json(recent(projectId, limit));
+});
+
+router.get('/time', (req, res) => {
+  const projectId = getProjectId(req.query.project || 'default');
+  res.json(timeStats(projectId));
+});
+
+router.get('/shares', (req, res) => {
+  const projectId = getProjectId(req.query.project || 'default');
+  res.json(shareStats(projectId));
 });
 
 module.exports = router;

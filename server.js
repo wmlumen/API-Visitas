@@ -37,11 +37,15 @@ app.get('/', (req, res) => {
         version: '1.0.0',
         endpoints: {
           track: '/track?project=nombre&page=url',
+          track_time: '/track/time?project=nombre&seconds=120',
+          track_share: '/track/share?project=nombre&platform=whatsapp',
           overview: '/api/stats/overview?project=nombre',
           timeline: '/api/stats/timeline?project=nombre',
           devices: '/api/stats/devices?project=nombre',
           locations: '/api/stats/locations?project=nombre',
           recent: '/api/stats/recent?project=nombre',
+          time: '/api/stats/time?project=nombre',
+          shares: '/api/stats/shares?project=nombre',
           projects: '/api/projects',
           health: '/api/health'
         }

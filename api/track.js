@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UAParser = require('ua-parser-js');
-const { getProjectId, insertVisit } = require('../db/database');
+const { getProjectId, insertVisit, updateTimeSpent, insertShare } = require('../db/database');
 const { isBot } = require('../middlewares/botFilter');
 const crypto = require('crypto');
 
@@ -166,6 +166,38 @@ router.get('/', async (req, res) => {
   } else {
     res.json(responseData);
   }
+});
+
+/**
+ * GET /track/time?project=nombre&seconds=120
+ * Registra el tiempo de permanencia en la página
+ */
+router.get('/time', (req, res) => {
+  const project = req.query.project || 'default';
+  const seconds = parseInt(req.query.seconds) || 0;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress;
+  const userAgent = req.headers['user-agent'] || '';
+  const visitorHash = require('crypto').createHash('md5').update(`${ip}|${userAgent}`).digest('hex');
+
+  const projectId = getProjectId(project);
+  const result = updateTimeSpent(projectId, visitorHash, seconds);
+
+  res.json({ success: true, project, seconds, time_spent: result });
+});
+
+/**
+ * GET /track/share?project=nombre&platform=whatsapp&page=url
+ * Registra que un proyecto fue compartido
+ */
+router.get('/share', (req, res) => {
+  const project = req.query.project || 'default';
+  const platform = req.query.platform || 'unknown';
+  const page = req.query.page || '';
+
+  const projectId = getProjectId(project);
+  insertShare(projectId, platform, page);
+
+  res.json({ success: true, project, platform });
 });
 
 module.exports = router;
