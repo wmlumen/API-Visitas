@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const UAParser = require('ua-parser-js');
 const { getProjectId, insertVisit, updateTimeSpent, insertShare } = require('../db/database');
+const { syncVisit, syncShare } = require('../db/sheetsSync');
 const { isBot } = require('../middlewares/botFilter');
 const crypto = require('crypto');
 
@@ -136,6 +137,8 @@ router.get('/', async (req, res) => {
       visitorHash,
       isBot: bot
     });
+    // Sincronizar con Google Sheets (fire-and-forget)
+    syncVisit({ project, page, ip, country: geo.country, region: geo.region, city: geo.city, lat: geo.lat, lon: geo.lon, isp: geo.isp, browser, os, device, referrer, visitor_hash: visitorHash, is_bot: bot });
   } catch (err) {
     console.error('Error inserting visit:', err.message);
   }
@@ -196,6 +199,7 @@ router.get('/share', (req, res) => {
 
   const projectId = getProjectId(project);
   insertShare(projectId, platform, page);
+  syncShare(project, platform, page);
 
   res.json({ success: true, project, platform });
 });
