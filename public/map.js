@@ -4,48 +4,40 @@
 let map;
 let markersLayer;
 
-function initMap() {
-  const container = document.getElementById('map');
-  container.classList.remove('loading');
-  container.innerHTML = '';
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const container = document.getElementById('map');
+    container.classList.remove('loading');
+    container.innerHTML = '';
 
-  map = L.map('map', {
-    center: [20, 0],
-    zoom: 2,
-    minZoom: 2,
-    maxZoom: 12,
-    worldCopyJump: true
-  });
+    map = L.map('map', {
+      center: [20, 0],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 12,
+      worldCopyJump: true
+    });
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://openstreetmap.org">OSM</a>',
-    maxZoom: 18
-  }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://openstreetmap.org">OSM</a>',
+      maxZoom: 18
+    }).addTo(map);
 
-  markersLayer = L.layerGroup().addTo(map);
-}
+    markersLayer = L.layerGroup().addTo(map);
+  } catch (e) {
+    document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;">Error al cargar el mapa</div>';
+  }
+});
 
 function loadLocations(project) {
-  if (!map) initMap();
+  if (!map || !markersLayer) return;
 
-  if (markersLayer) markersLayer.clearLayers();
+  markersLayer.clearLayers();
 
   fetch(`/api/stats/locations?project=${encodeURIComponent(project)}`)
     .then(r => r.json())
     .then(data => {
-      if (!data.cities || data.cities.length === 0) {
-        const container = document.getElementById('map');
-        if (!map || !container.querySelector('.leaflet-container')) {
-          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;">Sin datos de ubicación aún</div>';
-        }
-        return;
-      }
-
-      // Asegurar que el mapa está listo
-      const container = document.getElementById('map');
-      if (!container.querySelector('.leaflet-container')) {
-        initMap();
-      }
+      if (!data.cities || !data.cities.length) return;
 
       const bounds = [];
       data.cities.forEach(city => {
@@ -74,9 +66,9 @@ function loadLocations(project) {
       });
 
       if (bounds.length > 0) {
-        const group = L.featureGroup(bounds.map(b => L.marker(b)));
-        map.fitBounds(group.getBounds().pad(0.1));
-        if (map.getZoom() > 8) map.setZoom(8);
+        try {
+          map.fitBounds(bounds, { padding: [20, 20], maxZoom: 8 });
+        } catch (e) {}
       }
     })
     .catch(err => {
