@@ -241,7 +241,7 @@ async function loadRecent(project) {
       </tr></thead><tbody>`;
 
     visits.forEach(v => {
-      const time = new Date(v.created_at + 'Z');
+      const time = new Date(v.created_at);
       const formatted = time.toLocaleString('es-PY');
       html += `<tr>
         <td>${escHtml(v.country || '—')}</td>
